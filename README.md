@@ -48,373 +48,64 @@ O logging estruturado foi configurado para capturar informações detalhadas:
 ```json
 {
   "Serilog": {
-    "MinimumLevel": {
-      "Default": "Information"
-    },
+    "MinimumLevel": "Information",
     "WriteTo": [
       { "Name": "Console" },
-      {
-        "Name": "File",
-        "Args": {
-          "path": "logs/neocare-.txt",
-          "rollingInterval": "Day"
-        }
-      }
+      { "Name": "File", "Args": { "path": "logs/neocare-.txt" } }
     ]
   }
 }
 ```
 
-#### Tracing e Métricas com OpenTelemetry
-Implementação completa de distributed tracing e coleta de métricas:
+### 2. Testes Automatizados
 
-**Instrumentações:**
-- ASP.NET Core (requisições HTTP)
-- Runtime (.NET)
-- Camadas da aplicação
-
-**Métricas coletadas:**
-- Tempo de resposta das requisições
-- Taxa de erros
-- Uso de memória e CPU
-- Requisições por segundo
-
-**Exportador:** Console (desenvolvimento) - Configurável para Jaeger, Prometheus, etc.
-
----
-
-## 🧪 Testes Automatizados
-
-### Estrutura de Testes
-
-```
-Neocare.Tests/
-├── Unit/
-│   ├── Services/
-│   │   └── StressEntryServiceTests.cs
-│   └── Domain/
-│       └── StressEntryEntityTests.cs
-└── Integration/
-    └── API/
-        └── StressEntriesApiTests.cs
-```
-
-### Padrão AAA (Arrange-Act-Assert)
-
-Todos os testes seguem o padrão AAA:
-- **Arrange** - Preparar dados e mocks
-- **Act** - Executar a ação a ser testada
-- **Assert** - Validar resultados
-
-### Testes Unitários (20 pts)
-
-#### StressEntryService
-- `SearchStressEntries_WithValidParams_ReturnsResults`
-- `SearchStressEntries_WithMinStressLevel_FiltersCorrectly`
-- `SearchStressEntries_WithSearchTerm_FiltersByDescription`
-- `SearchStressEntries_SecondCall_UsesCachedResult`
-- `GetByIdAsync_WithValidId_ReturnsStressEntry`
-- `GetByIdAsync_WithInvalidId_ThrowsKeyNotFoundException`
-- `CreateAsync_WithValidData_CreatesStressEntry`
-- `UpdateStressEntry_WithValidData_UpdatesSuccessfully`
-- `UpdateStressEntry_WithInvalidId_ReturnsNull`
-- `DeleteStressEntry_WithValidId_DeletesSuccessfully`
-- `DeleteStressEntry_WithInvalidId_ReturnsFalse`
-
-#### StressEntry Entity
-- `StressEntry_Creation_InitializesAllProperties`
-- `StressEntry_WithDefaultValues_InitializesCorrectly`
-- `StressEntry_SymptomsList_IsModifiable`
-- `StressEntry_WithValidStressLevel_IsCreated`
-
-**Ferramentas utilizadas:**
-- xUnit - Framework de testes
-- Moq - Mocking de dependências
-- FluentAssertions - Assertions mais legíveis
-
-### Testes de Integração (15 pts)
-
-#### Health Checks Integration
-- `HealthCheck_Get_ReturnsHealthy`
-- `HealthCheckReady_Get_ReturnsHealthy`
-
-#### GET /api/stress
-- `GetStressEntries_WithoutParams_ReturnsSuccessWithPagination`
-- `GetStressEntries_WithPagination_ReturnsPaginatedResults`
-- `GetStressEntries_WithSortBy_ReturnsSortedResults`
-
-#### POST /api/stress
-- `CreateStressEntry_WithValidData_ReturnsCreatedWithLocation`
-- `CreateStressEntry_MultipleEntries_AllAreStored`
-
-#### PUT /api/stress/{id}
-- `UpdateStressEntry_WithValidData_ReturnsOk`
-- `UpdateStressEntry_WithNonExistentId_ReturnsNotFound`
-
-#### DELETE /api/stress/{id}
-- `DeleteStressEntry_WithValidId_ReturnsNoContent`
-- `DeleteStressEntry_WithNonExistentId_ReturnsNotFound`
-
-#### Error Handling
-- `InvalidEndpoint_Returns404`
-- `PostWithInvalidJson_ReturnsBadRequest`
-
-**Ferramentas utilizadas:**
-- WebApplicationFactory - Teste de integração com host real
-- FluentAssertions - Assertions semânticas
-- HttpClient - Requisições HTTP reais
-
-### Executar Testes
-
-```bash
-# Executar todos os testes
-dotnet test
-
-# Executar apenas testes unitários
-dotnet test --filter "Category=Unit" 2>/dev/null || dotnet test Neocare.Tests
-
-# Executar apenas testes de integração
-dotnet test --filter "Category=Integration" 2>/dev/null || dotnet test Neocare.Tests
-
-# Executar com verbose
-dotnet test -v normal
-
-# Executar teste específico
-dotnet test --filter "FullyQualifiedName=Neocare.Tests.Unit.Services.StressEntryServiceTests.SearchStressEntries_WithValidParams_ReturnsResults"
-```
-
-### Cobertura de Testes
-
-Total de testes implementados: **+25 testes**
-
-- Unit Tests: 15 testes
-- Integration Tests: 10+ testes
-
----
-
-## 📊 Arquitetura e Camadas
-
-```
-Neocare (ASP.NET Core 8)
-├── Pages/
-│   ├── StressEntries.cshtml.cs
-│   ├── CreateStressEntry.cshtml.cs
-│   └── ...
-├── Application/
-│   ├── Services/
-│   │   └── StressEntryService.cs
-│   └── DTOs/
-│       ├── StressEntryDto.cs
-│       ├── CreateStressEntryDto.cs
-│       └── SearchParams.cs
-├── Domain/
-│   ├── Entities/
-│   │   └── StressEntry.cs
-│   └── Interfaces/
-│       └── IStressEntryRepository.cs
-└── Infrastructure/
-    ├── Repositories/
-    │   └── InMemoryStressEntryRepository.cs
-    └── HealthChecks/
-        ├── DatabaseHealthCheck.cs
-        └── ExternalServiceHealthCheck.cs
-```
-
----
-
-## 🔌 Endpoints da API
-
-### Health Checks
-```http
-GET /health              # Saúde geral
-GET /health/ready        # Prontidão da aplicação
-```
-
-### Stress Entries
-```http
-GET    /api/stress              # Listar com paginação
-POST   /api/stress              # Criar novo
-PUT    /api/stress/{id}         # Atualizar
-DELETE /api/stress/{id}         # Deletar
-
-# Exemplo com parâmetros
-GET /api/stress?page=1&pageSize=10&sortBy=level&sortDirection=desc&minStressLevel=5
-```
-
-### Swagger/OpenAPI
-```
-http://localhost:5000/api/docs
-```
-
----
-
-## 📦 Dependências Adicionadas
-
-### Monitoramento e Observabilidade
-```xml
-<PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" Version="8.0.0" />
-<PackageReference Include="Serilog" Version="3.1.1" />
-<PackageReference Include="Serilog.AspNetCore" Version="8.0.1" />
-<PackageReference Include="Serilog.Sinks.Console" Version="5.1.0" />
-<PackageReference Include="Serilog.Sinks.File" Version="5.0.0" />
-<PackageReference Include="OpenTelemetry" Version="1.7.0" />
-<PackageReference Include="OpenTelemetry.Exporter.Console" Version="1.7.0" />
-<PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.7.0" />
-<PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.7.0" />
-<PackageReference Include="OpenTelemetry.Instrumentation.Runtime" Version="1.7.0" />
-```
-
-### Testes
-```xml
-<PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.2" />
-<PackageReference Include="xunit" Version="2.6.6" />
-<PackageReference Include="xunit.runner.visualstudio" Version="2.5.4" />
-<PackageReference Include="Moq" Version="4.20.70" />
-<PackageReference Include="FluentAssertions" Version="6.12.0" />
-<PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="8.0.0" />
-```
-
----
-
-## 🏃 Executando a Aplicação
-
-### Pré-requisitos
-- .NET 8 SDK
-- Visual Studio 2026 ou VS Code
-
-### Passos
-
-```bash
-# 1. Clonar repositório
-git clone https://github.com/joaocrdso/Neocare-.NET.git
-cd Neocare-.NET
-
-# 2. Restaurar dependências
-dotnet restore
-
-# 3. Compilar
-dotnet build
-
-# 4. Executar
-dotnet run --project Neocare/Neocare.csproj
-
-# 5. Aplicação estará em
-# http://localhost:5000 ou https://localhost:5001
-```
-
-### Executar Testes
+#### Como executar os testes
+Para executar os testes automatizados, utilize o comando abaixo na raiz do projeto:
 ```bash
 dotnet test
 ```
 
----
+Os testes estão organizados em dois projetos:
+- **Testes Unitários:** Localizados em `Neocare.Tests.Unit`.
+- **Testes de Integração:** Localizados em `Neocare.Tests.Integration`.
 
-## 📝 Configuração de Logging
+#### Organização dos Testes
+- **Padrão AAA:** Todos os testes seguem o padrão Arrange, Act, Assert.
+- **Nomenclatura:** Os testes seguem o formato `MetodoTestado_Cenario_ResultadoEsperado`.
+- **Fixtures:** Utilização de Fixtures e Collection Fixtures para compartilhar contexto entre testes.
 
-### Exemplo de uso em código
+### 3. Tracing e Métricas
 
+#### OpenTelemetry
+A aplicação utiliza OpenTelemetry para rastreamento distribuído e métricas:
+- **Tracing:** Configurado com `AddAspNetCoreInstrumentation` e `AddConsoleExporter`.
+- **Métricas:** Incluem `AddRuntimeInstrumentation` e `AddConsoleExporter`.
+
+**Exemplo de configuração:**
 ```csharp
-using Serilog;
-
-public class MyService
+services.AddOpenTelemetryTracing(builder =>
 {
-    private readonly ILogger<MyService> _logger;
+    builder.AddAspNetCoreInstrumentation()
+           .AddConsoleExporter();
+});
 
-    public MyService(ILogger<MyService> logger)
-    {
-        _logger = logger;
-    }
-
-    public void DoSomething()
-    {
-        _logger.LogInformation("Executando ação importante");
-        _logger.LogWarning("Aviso: verifique isto");
-        _logger.LogError("Erro: algo deu errado");
-    }
-}
-```
-
-### Visualizar logs
-
-```bash
-# Logs do console (durante execução)
-dotnet run
-
-# Logs de arquivo
-tail -f logs/neocare-2024-01-15.txt  # macOS/Linux
-Get-Content logs/neocare-2024-01-15.txt -Tail 100 -Wait  # Windows PowerShell
+services.AddOpenTelemetryMetrics(metrics =>
+{
+    metrics.AddAspNetCoreInstrumentation()
+           .AddRuntimeInstrumentation()
+           .AddConsoleExporter();
+});
 ```
 
 ---
 
-## 📊 Observabilidade com OpenTelemetry
+## 🛠️ Como Monitorar a Aplicação
 
-### Ativar Tracing
-```csharp
-// Já configurado em Program.cs
-builder.Services.AddOpenTelemetry()
-    .WithTracing(tracing =>
-    {
-        tracing.AddAspNetCoreInstrumentation();
-    })
-    .WithMetrics(metrics =>
-    {
-        metrics.AddAspNetCoreInstrumentation();
-    });
-```
+1. **Health Checks:**
+   - Acesse os endpoints `/health` e `/health/ready` para verificar a saúde da aplicação.
 
-### Exportar para sistemas externos
+2. **Logs:**
+   - Consulte os arquivos de log gerados em `logs/` para informações detalhadas.
 
-**Jaeger (exemplo):**
-```xml
-<PackageReference Include="OpenTelemetry.Exporter.Jaeger" Version="1.7.0" />
-```
-
-**Prometheus (exemplo):**
-```xml
-<PackageReference Include="OpenTelemetry.Exporter.Prometheus.AspNetCore" Version="1.7.0" />
-```
-
----
-
-## 🐛 Troubleshooting
-
-### Testes não executam
-```bash
-# Limpar cache e reconstruir
-dotnet clean
-dotnet build
-dotnet test
-```
-
-### Erros de Health Check
-- Verificar se banco de dados está acessível
-- Confirmar conectividade de rede
-- Verificar logs em `logs/neocare-*.txt`
-
-### Logging não funciona
-- Verificar permissões de escrita na pasta `logs/`
-- Confirmar configuração em `appsettings.json`
-- Verificar pasta `bin/` para logs em desenvolvimento
-
----
-
-## 📚 Recursos Adicionais
-
-- [ASP.NET Core 8 Documentation](https://learn.microsoft.com/en-us/aspnet/core/)
-- [Serilog Documentation](https://serilog.net/)
-- [OpenTelemetry .NET](https://opentelemetry.io/docs/instrumentation/net/)
-- [xUnit Documentation](https://xunit.net/)
-- [FluentAssertions](https://fluentassertions.com/)
-
----
-
-## 👥 Autores
-
-Desenvolvido como parte do curso "Advanced Business Development with .NET"
-
----
-
-## 📄 Licença
-
-Este projeto está sob a licença MIT.
+3. **Tracing e Métricas:**
+   - Utilize ferramentas compatíveis com OpenTelemetry para visualizar os traces e métricas da aplicação.
