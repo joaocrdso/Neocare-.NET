@@ -1,0 +1,9 @@
+Neocare - 2TDSPS - Sprint 3
+
+Davi Praxedes Santos Silva - 560719
+
+João dos Santos Cardoso de Jesus - 560400
+
+Kauê Vinicius Samartino da Silva - 559317
+
+Link do repositório: https://github.com/joaocrdso/Neocare-.NET

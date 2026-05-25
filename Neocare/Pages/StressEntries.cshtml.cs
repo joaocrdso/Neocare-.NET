@@ -45,20 +45,29 @@ namespace Neocare.Pages
 
         public async Task OnGetAsync()
         {
-            var searchParams = new SearchParams
+            try
             {
-                Page = CurrentPage,
-                PageSize = PageSize,
-                SortBy = SortBy,
-                SortDirection = SortDirection,
-                SearchTerm = SearchTerm,
-                MinStressLevel = MinStressLevel,
-                MaxStressLevel = MaxStressLevel,
-                FromDate = FromDate,
-                ToDate = ToDate
-            };
+                var searchParams = new SearchParams
+                {
+                    Page = CurrentPage,
+                    PageSize = PageSize,
+                    SortBy = SortBy,
+                    SortDirection = SortDirection,
+                    SearchTerm = SearchTerm,
+                    MinStressLevel = MinStressLevel,
+                    MaxStressLevel = MaxStressLevel,
+                    FromDate = FromDate,
+                    ToDate = ToDate
+                };
 
-            SearchResult = await _stressEntryService.SearchStressEntries(searchParams);
+                SearchResult = await _stressEntryService.SearchStressEntries(searchParams);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error in OnGetAsync: {ex.Message}");
+                Console.WriteLine($"Stack Trace: {ex.StackTrace}");
+                SearchResult = new SearchResult<StressEntryDto> { Items = new List<StressEntryDto>(), TotalCount = 0 };
+            }
         }
 
         public async Task<IActionResult> OnPostDeleteAsync(Guid id)

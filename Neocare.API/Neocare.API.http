@@ -1,0 +1,6 @@
+@Neocare.API_HostAddress = http://localhost:5208
+
+GET {{Neocare.API_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

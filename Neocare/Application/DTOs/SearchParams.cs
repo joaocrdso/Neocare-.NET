@@ -18,7 +18,7 @@ namespace Neocare.Application.DTOs
     public class SearchResult<T>
     {
         public IEnumerable<T> Items { get; set; } = Array.Empty<T>();
-        public int TotalItems { get; set; }
+        public int TotalCount { get; set; }
         public int TotalPages { get; set; }
         public int CurrentPage { get; set; }
     }

@@ -1,5 +1,6 @@
 using Neocare.Application.DTOs;
 using Neocare.Domain.Entities;
+using Neocare.Domain.Exceptions;
 using Neocare.Domain.Interfaces;
 using Microsoft.Extensions.Caching.Memory;
 using System.Linq.Expressions;
@@ -73,7 +74,7 @@ namespace Neocare.Application.Services
             var result = new SearchResult<StressEntryDto>
             {
                 Items = items,
-                TotalItems = totalItems,
+                TotalCount = totalItems,
                 TotalPages = totalPages,
                 CurrentPage = searchParams.Page
             };
@@ -90,10 +91,11 @@ namespace Neocare.Application.Services
         {
             var entry = await _repository.GetByIdAsync(id);
             if (entry == null)
-                throw new KeyNotFoundException("Registro de estresse não encontrado");
+                throw new NotFoundException("StressEntry", id);
 
             return MapToDto(entry);
         }
+        
 
         public async Task<IEnumerable<StressEntryDto>> GetByUserIdAsync(string userId)
         {

@@ -26,6 +26,12 @@ namespace Neocare.Pages
         {
             if (!ModelState.IsValid)
             {
+                // Log dos erros para debug
+                var errors = ModelState.Values.SelectMany(v => v.Errors);
+                foreach (var error in errors)
+                {
+                    Console.WriteLine($"Validation Error: {error.ErrorMessage}");
+                }
                 return Page();
             }
 

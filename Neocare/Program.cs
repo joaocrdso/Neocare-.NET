@@ -1,199 +1,132 @@
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.OpenApi.Models;
+using System.Text;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using Serilog;
-using OpenTelemetry.Trace;
-using OpenTelemetry.Metrics;
+using Neocare.Infrastructure.Data;
+using Neocare.Infrastructure.Repositories;
+using Neocare.Infrastructure.Persistence;
+using Neocare.Application.Services;
+using Neocare.Application.Interfaces;
+using Neocare.Domain.Interfaces;
 using Neocare.Infrastructure.HealthChecks;
-using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Neocare.Infrastructure.Middleware;
+using Swashbuckle.AspNetCore.SwaggerGen;
 
-// Configurar Serilog para logging estruturado
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Information()
     .WriteTo.Console()
-    .WriteTo.File("logs/neocare-.txt", rollingInterval: RollingInterval.Day)
+    .WriteTo.File("logs/neocare-.log", rollingInterval: RollingInterval.Day)
     .Enrich.FromLogContext()
-    .Enrich.WithProperty("Application", "NeoCare")
+    .Enrich.WithProperty("Application", "Neocare")
     .CreateLogger();
 
 try
 {
-    Log.Information("Iniciando aplicação NeoCare");
+    Log.Information("Iniciando aplicação Neocare");
 
     var builder = WebApplication.CreateBuilder(args);
     builder.Host.UseSerilog();
 
-    // Configurar Health Checks
-    builder.Services
-        .AddHealthChecks()
-        .AddCheck<DatabaseHealthCheck>("database")
-        .AddCheck<ExternalServiceHealthCheck>("external_services")
-        .AddCheck("api_health", () => HealthCheckResult.Healthy("API está saudável"));
+    var jwtSettings = builder.Configuration.GetSection("JwtSettings");
+    var key = Encoding.ASCII.GetBytes(jwtSettings["SecretKey"]!);
 
-    // Configurar OpenTelemetry para tracing e métricas
-    builder.Services.AddOpenTelemetry()
-        .WithTracing(tracing =>
-        {
-            tracing
-                .AddAspNetCoreInstrumentation()
-                .AddConsoleExporter();
-        })
-        .WithMetrics(metrics =>
-        {
-            metrics
-                .AddAspNetCoreInstrumentation()
-                .AddRuntimeInstrumentation()
-                .AddConsoleExporter();
-        });
-
-    builder.Services.AddHttpClient();
-
-    builder.Services.AddRazorPages()
-        .AddRazorPagesOptions(options =>
-        {
-            options.Conventions.AddPageRoute("/StressEntries", "/stress");
-            options.Conventions.AddPageRoute("/CreateStressEntry", "/stress/new");
-        });
-
-    builder.Services.AddEndpointsApiExplorer();
-    builder.Services.AddSwaggerGen(c =>
+    builder.Services.AddAuthentication(x =>
     {
-        c.SwaggerDoc("v1", new OpenApiInfo
+        x.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+        x.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+    })
+    .AddJwtBearer(x =>
+    {
+        x.RequireHttpsMetadata = false;
+        x.SaveToken = true;
+        x.TokenValidationParameters = new TokenValidationParameters
         {
-            Title = "NeoCare API",
-            Version = "v1",
-            Description = "API para gerenciamento de registros de estresse mental",
-            Contact = new OpenApiContact
-            {
-                Name = "Equipe NeoCare",
-                Email = "contato@neocare.com"
-            }
-        });
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(key),
+            ValidateIssuer = false,
+            ValidateAudience = false
+        };
     });
 
+    builder.Services.AddAuthorization();
+
+    builder.Services.AddDbContext<NeocareDbContext>(options =>
+        options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+    builder.Services.AddIdentity<IdentityUser, IdentityRole>()
+        .AddEntityFrameworkStores<NeocareDbContext>()
+        .AddDefaultTokenProviders();
+
+    builder.Services.Configure<JwtSettings>(jwtSettings);
+    builder.Services.Configure<MongoDbSettings>(builder.Configuration.GetSection("MongoDbSettings"));
+
+    builder.Services.AddScoped<IPatientRepository, PatientRepository>();
+    builder.Services.AddScoped<IAppointmentRepository, AppointmentRepository>();
+    builder.Services.AddScoped<IHealthProfessionalRepository, HealthProfessionalRepository>();
+    builder.Services.AddScoped<ITreatmentRepository, TreatmentRepository>();
+    builder.Services.AddScoped<IAuditLogRepository, AuditLogRepository>();
+    builder.Services.AddSingleton<IStressEntryRepository, InMemoryStressEntryRepository>();
+
+    builder.Services.AddScoped<IPatientService, PatientService>();
+    builder.Services.AddScoped<IAppointmentService, AppointmentService>();
+    builder.Services.AddScoped<IHealthProfessionalService, HealthProfessionalService>();
+    builder.Services.AddScoped<ITreatmentService, TreatmentService>();
+    builder.Services.AddScoped<IAuthService, AuthService>();
+    builder.Services.AddScoped<StressEntryService>();
+
     builder.Services.AddMemoryCache();
-    builder.Services.AddResponseCaching();
-    builder.Services.AddSingleton<Neocare.Domain.Interfaces.IStressEntryRepository, Neocare.Infrastructure.Repositories.InMemoryStressEntryRepository>();
-    builder.Services.AddScoped<Neocare.Application.Services.StressEntryService>();
+    builder.Services.AddSingleton<MongoDbContext>();
+
+    builder.Services
+        .AddHealthChecks()
+        .AddSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")!, name: "sqlserver")
+        .AddMongoDb(builder.Configuration["MongoDbSettings:ConnectionString"]!, name: "mongodb");
+
+    builder.Services.AddEndpointsApiExplorer();
+    builder.Services.AddSwaggerGen();
+    builder.Services.AddRazorPages();
 
     var app = builder.Build();
 
-    if (!app.Environment.IsDevelopment())
+    using (var scope = app.Services.CreateScope())
     {
-        app.UseExceptionHandler("/Error");
-        app.UseHsts();
+        var context = scope.ServiceProvider.GetRequiredService<NeocareDbContext>();
+        context.Database.Migrate();
     }
+
+    app.UseMiddleware<GlobalExceptionHandlerMiddleware>();
 
     if (app.Environment.IsDevelopment())
     {
         app.UseSwagger();
         app.UseSwaggerUI(c =>
         {
-            c.SwaggerEndpoint("/swagger/v1/swagger.json", "NeoCare API V1");
-            c.RoutePrefix = "api/docs";
+            c.SwaggerEndpoint("/swagger/v1/swagger.json", "Neocare API V1");
         });
     }
 
     app.UseHttpsRedirection();
     app.UseStaticFiles();
-    app.UseRouting();
-    app.UseAuthorization();
-    app.UseResponseCaching();
 
-    // Adicionar Health Checks Endpoint
     app.MapHealthChecks("/health");
-    app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
-    {
-        Predicate = _ => true
-    });
 
+    app.UseAuthentication();
+    app.UseAuthorization();
+
+    app.MapControllers();
     app.MapRazorPages();
-
-    app.MapGet("/api/stress", async (Neocare.Application.Services.StressEntryService service, [AsParameters] Neocare.Application.DTOs.SearchParams searchParams) =>
-    {
-        var result = await service.SearchStressEntries(searchParams);
-        var baseUrl = $"/api/stress";
-
-        return Results.Ok(new
-        {
-            Data = result.Items,
-            Links = new
-            {
-                Self = $"{baseUrl}?page={searchParams.Page}&pageSize={searchParams.PageSize}&sortBy={searchParams.SortBy}&sortDirection={searchParams.SortDirection}",
-                First = $"{baseUrl}?page=1&pageSize={searchParams.PageSize}&sortBy={searchParams.SortBy}&sortDirection={searchParams.SortDirection}",
-                Previous = searchParams.Page > 1
-                    ? $"{baseUrl}?page={searchParams.Page - 1}&pageSize={searchParams.PageSize}&sortBy={searchParams.SortBy}&sortDirection={searchParams.SortDirection}"
-                    : null,
-                Next = searchParams.Page < result.TotalPages
-                    ? $"{baseUrl}?page={searchParams.Page + 1}&pageSize={searchParams.PageSize}&sortBy={searchParams.SortBy}&sortDirection={searchParams.SortDirection}"
-                    : null,
-                Last = $"{baseUrl}?page={result.TotalPages}&pageSize={searchParams.PageSize}&sortBy={searchParams.SortBy}&sortDirection={searchParams.SortDirection}"
-            },
-            Meta = new
-            {
-                result.CurrentPage,
-                result.TotalPages,
-                result.TotalItems,
-                PageSize = searchParams.PageSize,
-                SortBy = searchParams.SortBy,
-                SortDirection = searchParams.SortDirection
-            }
-        });
-    });
-
-    app.MapPost("/api/stress", async (Neocare.Application.Services.StressEntryService service, Neocare.Application.DTOs.CreateStressEntryDto entry) =>
-    {
-        var result = await service.CreateAsync(entry);
-        return Results.Created($"/api/stress/{result.Id}", new
-        {
-            Data = result,
-            Links = new
-            {
-                Self = $"/api/stress/{result.Id}",
-                Collection = "/api/stress"
-            }
-        });
-    });
-
-    app.MapPut("/api/stress/{id}", async (Neocare.Application.Services.StressEntryService service, Guid id, Neocare.Application.DTOs.StressEntryDto entry) =>
-    {
-        var result = await service.UpdateStressEntry(id, entry);
-        if (result == null) return Results.NotFound();
-
-        return Results.Ok(new
-        {
-            Data = result,
-            Links = new
-            {
-                Self = $"/api/stress/{result.Id}",
-                Collection = "/api/stress"
-            }
-        });
-    });
-
-    app.MapDelete("/api/stress/{id}", async (Neocare.Application.Services.StressEntryService service, Guid id) =>
-    {
-        var result = await service.DeleteStressEntry(id);
-        return result ? Results.NoContent() : Results.NotFound();
-    });
 
     app.Run();
 }
 catch (Exception ex)
 {
-    Log.Fatal(ex, "Erro crítico na aplicação");
-    Environment.Exit(1);
+    Log.Fatal(ex, "Aplicação encerrada com erro");
 }
 finally
 {
     Log.CloseAndFlush();
 }
 
-public class PaginationParams
-{
-    public int Page { get; set; } = 1;
-    public int PageSize { get; set; } = 10;
-    public string SortBy { get; set; } = "date";
-}
-
-// Tornar Program público para testes de integração
 public partial class Program { }
