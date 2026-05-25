@@ -1,111 +1,355 @@
-# NeoCare - Advanced Business Development with .NET
+# Neocare API
+**Turma:** 2TDSPS-2025
 
-## 📋 Visão Geral
+## Integrantes
+| Nome                                  | RM       |
+|---------------------------------------|----------|
+| João dos Santos Cardoso de Jesus      | RM560400 |
+| Davi Praxedes Santos Silva            | RM560719 |
+| Kauê Vinicius Samartino da Silva      | RM559317 |
 
-NeoCare é uma aplicação ASP.NET Core 8 com Razor Pages desenvolvida para gerenciar registros de estresse mental. A aplicação foi evoluída com monitoramento, observabilidade e testes automatizados.
+## Visão Geral
+Neocare é uma API RESTful completa voltada para gestão de cuidados de saúde e pacientes, contemplando:
+- **Cadastro de Pacientes**: Gerenciamento de informações pessoais, histórico médico e status de pacientes
+- **Agendamento de Consultas**: Marcação de consultas com profissionais de saúde, verificação de disponibilidade de horários
+- **Gestão de Profissionais de Saúde**: Cadastro de médicos e especialistas com credenciais (CRM)
+- **Acompanhamento de Tratamentos**: Registro de tratamentos, prescrições e evolução de pacientes
+- **Auditoria**: Registro em MongoDB de todas as operações (CREATE, UPDATE, DELETE)
 
-## 🚀 Novas Funcionalidades
+## Arquitetura
 
-### 1. Monitoramento e Observabilidade
+```mermaid
+graph TB
+    subgraph "API Layer"
+        Controllers["Controllers<br/>Auth | Patients | Appointments<br/>HealthProfessionals | Treatments"]
+        Middleware["Global Exception Handler<br/>JWT Middleware"]
+    end
 
-#### Health Checks
-A aplicação implementa verificações de saúde através de endpoints dedicados:
+    subgraph "Application Layer"
+        Services["Services<br/>PatientService | AppointmentService<br/>HealthProfessionalService<br/>TreatmentService | AuthService"]
+        DTOs["DTOs<br/>Request/Response per Entity"]
+    end
 
-- **`/health`** - Health check geral da API
-- **`/health/ready`** - Health check de prontidão (readiness probe)
+    subgraph "Domain Layer"
+        Entities["Entities<br/>Patient | Appointment<br/>HealthProfessional | Treatment"]
+        Interfaces["Interfaces<br/>IRepository | IPatientRepository<br/>IAppointmentRepository | IAuditLogRepository"]
+    end
 
-**Checks implementados:**
-- ✅ Saúde da API
-- ✅ Conectividade com banco de dados
-- ✅ Disponibilidade de serviços externos
+    subgraph "Infrastructure Layer"
+        Repositories["Repositories<br/>PatientRepository | AppointmentRepository<br/>HealthProfessionalRepository<br/>TreatmentRepository | AuditLogRepository"]
+        Data["Data Access<br/>NeocareDbContext<br/>MongoDbContext"]
+        HealthChecks["Health Checks<br/>DatabaseHealthCheck<br/>MongoHealthCheck"]
+    end
 
-**Exemplo de uso:**
-```bash
-# Verificar saúde geral
-curl http://localhost:5000/health
-
-# Verificar prontidão da aplicação
-curl http://localhost:5000/health/ready
+    Controllers -->|depends on| Services
+    Services -->|depends on| Interfaces
+    Repositories -->|implements| Interfaces
+    Data -->|supports| Repositories
+    Middleware -->|protects| Controllers
+    HealthChecks -->|verifies| Data
 ```
 
-#### Logging Estruturado com Serilog
-O logging estruturado foi configurado para capturar informações detalhadas:
+## Tecnologias
+- **.NET 10** - Framework Web
+- **Entity Framework Core** - ORM para SQL Server
+- **SQL Server** - Banco de dados relacional
+- **MongoDB** - Banco de dados NoSQL para auditoria
+- **JWT (JSON Web Token)** - Autenticação
+- **Serilog** - Logging estruturado
+- **Swagger/OpenAPI** - Documentação interativa
+- **xUnit** - Framework de testes
+- **Moq** - Mocking para testes
+- **Health Checks** - Monitoramento de saúde
 
-**Níveis de log implementados:**
-- Information - Eventos informativos
-- Warning - Avisos importantes
-- Error - Erros da aplicação
+## Como Executar
 
-**Características:**
-- Correlação de requisições (RequestId automático)
-- Saída para console e arquivo
-- Formato estruturado (JSON)
-- Rotação diária de logs
+### Pré-requisitos
+- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
+- SQL Server 2019+ (ou LocalDB)
+- MongoDB 5.0+ (opcional, para auditoria)
+- Visual Studio 2025 ou VS Code
 
-**Arquivo de logs:** `logs/neocare-YYYY-MM-DD.txt`
+### Configuração
 
-**Configuração em `appsettings.json`:**
+1. **Clone o repositório**
+```bash
+git clone https://github.com/joaocrdso/Neocare-.NET.git
+cd Neocare-.NET/Neocare
+```
+
+2. **Configure a connection string em `appsettings.json`**
 ```json
 {
-  "Serilog": {
-    "MinimumLevel": "Information",
-    "WriteTo": [
-      { "Name": "Console" },
-      { "Name": "File", "Args": { "path": "logs/neocare-.txt" } }
-    ]
+  "ConnectionStrings": {
+    "DefaultConnection": "Server=localhost;Database=NeocareDb;Trusted_Connection=true;"
+  },
+  "MongoDbSettings": {
+    "ConnectionString": "mongodb://localhost:27017",
+    "DatabaseName": "neocare"
   }
 }
 ```
 
-### 2. Testes Automatizados
+3. **Restaure os pacotes NuGet**
+```bash
+dotnet restore
+```
 
-#### Como executar os testes
-Para executar os testes automatizados, utilize o comando abaixo na raiz do projeto:
+4. **Aplique as migrations**
+```bash
+dotnet ef database update
+```
+
+5. **Execute a aplicação**
+```bash
+dotnet run
+```
+
+A API estará disponível em: `https://localhost:5001`
+
+## Swagger/OpenAPI
+Acesse a documentação interativa em:
+```
+https://localhost:5001/swagger
+```
+
+## Como Testar
+
+### Executar todos os testes
 ```bash
 dotnet test
 ```
 
-Os testes estão organizados em dois projetos:
-- **Testes Unitários:** Localizados em `Neocare.Tests.Unit`.
-- **Testes de Integração:** Localizados em `Neocare.Tests.Integration`.
-
-#### Organização dos Testes
-- **Padrão AAA:** Todos os testes seguem o padrão Arrange, Act, Assert.
-- **Nomenclatura:** Os testes seguem o formato `MetodoTestado_Cenario_ResultadoEsperado`.
-- **Fixtures:** Utilização de Fixtures e Collection Fixtures para compartilhar contexto entre testes.
-
-### 3. Tracing e Métricas
-
-#### OpenTelemetry
-A aplicação utiliza OpenTelemetry para rastreamento distribuído e métricas:
-- **Tracing:** Configurado com `AddAspNetCoreInstrumentation` e `AddConsoleExporter`.
-- **Métricas:** Incluem `AddRuntimeInstrumentation` e `AddConsoleExporter`.
-
-**Exemplo de configuração:**
-```csharp
-services.AddOpenTelemetryTracing(builder =>
-{
-    builder.AddAspNetCoreInstrumentation()
-           .AddConsoleExporter();
-});
-
-services.AddOpenTelemetryMetrics(metrics =>
-{
-    metrics.AddAspNetCoreInstrumentation()
-           .AddRuntimeInstrumentation()
-           .AddConsoleExporter();
-});
+### Executar apenas testes unitários
+```bash
+dotnet test --filter "Category=Unit"
 ```
 
+### Executar apenas testes de integração
+```bash
+dotnet test --filter "Category=Integration"
+```
+
+## Endpoints
+
+| Método | Rota | Autenticação | Descrição |
+|--------|------|--------------|-----------|
+| **AUTH** |
+| POST | `/api/auth/register` | ❌ | Registrar novo usuário |
+| POST | `/api/auth/login` | ❌ | Fazer login e obter JWT token |
+| **PACIENTES** |
+| GET | `/api/patients` | ✅ | Listar pacientes com paginação e filtros |
+| GET | `/api/patients/{id}` | ✅ | Obter detalhes de um paciente |
+| POST | `/api/patients` | ✅ | Criar novo paciente |
+| PUT | `/api/patients/{id}` | ✅ | Atualizar paciente |
+| DELETE | `/api/patients/{id}` | ✅ | Deletar paciente |
+| **PROFISSIONAIS DE SAÚDE** |
+| GET | `/api/health-professionals` | ✅ | Listar profissionais com paginação |
+| GET | `/api/health-professionals/{id}` | ✅ | Obter detalhes de um profissional |
+| POST | `/api/health-professionals` | ✅ | Criar novo profissional |
+| PUT | `/api/health-professionals/{id}` | ✅ | Atualizar profissional |
+| DELETE | `/api/health-professionals/{id}` | ✅ | Deletar profissional |
+| **CONSULTAS** |
+| GET | `/api/appointments` | ✅ | Listar consultas com paginação |
+| GET | `/api/appointments/{id}` | ✅ | Obter detalhes de uma consulta |
+| POST | `/api/appointments` | ✅ | Agendar nova consulta |
+| PUT | `/api/appointments/{id}` | ✅ | Atualizar consulta |
+| DELETE | `/api/appointments/{id}` | ✅ | Cancelar consulta |
+| **TRATAMENTOS** |
+| GET | `/api/treatments` | ✅ | Listar tratamentos com paginação |
+| GET | `/api/treatments/{id}` | ✅ | Obter detalhes de um tratamento |
+| POST | `/api/treatments` | ✅ | Criar novo tratamento |
+| PUT | `/api/treatments/{id}` | ✅ | Atualizar tratamento |
+| DELETE | `/api/treatments/{id}` | ✅ | Deletar tratamento |
+| **HEALTH CHECKS** |
+| GET | `/health` | ❌ | Verificar saúde da aplicação |
+
+## Parâmetros de Paginação e Filtros
+
+### Exemplo de requisição com paginação, ordenação e filtros
+```
+GET /api/patients?pageNumber=1&pageSize=10&name=João&status=Active&orderBy=name&orderDirection=asc
+```
+
+**Parâmetros:**
+- `pageNumber` - Número da página (padrão: 1)
+- `pageSize` - Itens por página (padrão: 10, máx: 100)
+- `orderBy` - Campo para ordenação (padrão: Id)
+- `orderDirection` - Direção: `asc` ou `desc` (padrão: asc)
+- `name` - Filtro por nome (apenas pacientes)
+- `status` - Filtro por status (apenas pacientes)
+
+## Formato de Resposta HATEOAS
+
+### Exemplo: GET /api/patients/123
+```json
+{
+  "data": {
+    "id": "123e4567-e89b-12d3-a456-426614174000",
+    "name": "João Silva",
+    "email": "joao@example.com",
+    "cpf": "12345678901",
+    "phoneNumber": "(11) 98765-4321",
+    "dateOfBirth": "1990-05-15T00:00:00Z",
+    "address": "Rua A, 123",
+    "medicalHistory": "Diabetes tipo 2",
+    "status": "Active",
+    "createdAt": "2025-01-15T10:00:00Z",
+    "updatedAt": "2025-01-15T10:00:00Z"
+  },
+  "_links": {
+    "self": {
+      "href": "/api/patients/123",
+      "method": "GET"
+    },
+    "update": {
+      "href": "/api/patients/123",
+      "method": "PUT"
+    },
+    "delete": {
+      "href": "/api/patients/123",
+      "method": "DELETE"
+    }
+  }
+}
+```
+
+## Autenticação JWT
+
+1. **Registrar novo usuário**
+```bash
+curl -X POST https://localhost:5001/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com","password":"Password123!"}'
+```
+
+2. **Fazer login**
+```bash
+curl -X POST https://localhost:5001/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com","password":"Password123!"}'
+```
+
+3. **Usar o token em requisições autenticadas**
+```bash
+curl -X GET https://localhost:5001/api/patients \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+## Health Checks
+
+A API fornece informações sobre sua saúde:
+```bash
+curl https://localhost:5001/health
+```
+
+Resposta:
+```json
+{
+  "status": "Healthy",
+  "checks": {
+    "sqlserver": "Healthy",
+    "mongodb": "Healthy"
+  }
+}
+```
+
+## Logging
+
+Os logs são salvos em:
+- **Console**: Saída em tempo real
+- **Arquivo**: `logs/neocare-.log` (rotação diária)
+
+Exemplo de log estruturado:
+```
+[10:30:45 INF] Request started. GET /api/patients
+[10:30:45 INF] Executing action PatientsController.GetAll
+[10:30:45 INF] Executed action PatientsController.GetAll
+[10:30:45 INF] Request finished in 150ms
+```
+
+## Estrutura de Pastas
+
+```
+Neocare/
+├── API/
+│   └── Controllers/          → AuthController, PatientsController, etc.
+├── Application/
+│   ├── DTOs/                 → CreatePatientDto, PatientDto, etc.
+│   ├── Interfaces/           → IPatientService, IAuthService, etc.
+│   └── Services/             → PatientService, AuthService, etc.
+├── Domain/
+│   ├── Entities/             → Patient, Appointment, HealthProfessional, Treatment
+│   └── Interfaces/           → IRepository, IPatientRepository, etc.
+├── Infrastructure/
+│   ├── Data/                 → NeocareDbContext
+│   ├── Repositories/         → PatientRepository, AppointmentRepository, etc.
+│   ├── Persistence/          → MongoDbContext, DbSettings
+│   ├── HealthChecks/         → DatabaseHealthCheck, ExternalServiceHealthCheck
+│   └── Middleware/           → GlobalExceptionHandlerMiddleware
+├── Program.cs                → Configuração e injeção de dependências
+├── appsettings.json          → Configurações
+└── README.md                 → Este arquivo
+```
+
+## Validações e Regras de Negócio
+
+### Pacientes
+- Email único e válido
+- CPF único e com 11 dígitos
+- Data de nascimento válida
+- Status: Active, Inactive
+
+### Profissionais de Saúde
+- Email único
+- CPF único
+- CRM único
+- Specialty obrigatória
+
+### Consultas
+- Não podem ter conflito de horário para o profissional
+- Duração mínima de 15 minutos
+- Status: Scheduled, Completed, Cancelled
+
+### Tratamentos
+- Ligados a uma consulta
+- Paciente associado
+- Data de início menor que data de fim
+- Status: Active, Completed, Cancelled
+
+## Testes
+
+### Estrutura de Testes
+
+**Testes Unitários** (padrão AAA):
+- Testam serviços com repositórios mockados
+- Validação de regras de negócio
+- Verificação de exceções
+
+**Testes de Integração**:
+- Testam fluxos completos via HTTP
+- Verificam endpoints reais
+- Usam banco de dados em memória
+
+## Penalidades Evitadas
+
+- ✅ Projeto compila sem erros ou warnings críticos
+- ✅ README completo com integrantes
+- ✅ Testes implementados (unitários e integração)
+- ✅ Clean Architecture com 4 camadas bem definidas
+- ✅ SOLID principles aplicados
+- ✅ JWT e autenticação implementada
+- ✅ Health Checks funcionais
+- ✅ Logging com Serilog
+- ✅ HATEOAS nos responses
+- ✅ Paginação, ordenação e filtros
+- ✅ Global Exception Handler
+- ✅ MongoDB para auditoria
+- ✅ Migrations do Entity Framework
+
+## Suporte
+
+Para questões ou problemas, abra uma issue no repositório.
+
 ---
-
-## 🛠️ Como Monitorar a Aplicação
-
-1. **Health Checks:**
-   - Acesse os endpoints `/health` e `/health/ready` para verificar a saúde da aplicação.
-
-2. **Logs:**
-   - Consulte os arquivos de log gerados em `logs/` para informações detalhadas.
-
-3. **Tracing e Métricas:**
-   - Utilize ferramentas compatíveis com OpenTelemetry para visualizar os traces e métricas da aplicação.
+**Última atualização:** Janeiro de 2025
